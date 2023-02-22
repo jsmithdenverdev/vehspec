@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -14,7 +14,7 @@ import (
 
 const (
 	PROCESS_BATCH_TOPIC   = "process_batch"
-	BATCH_PROCESSED_TOPIC = "batch_processed_batch"
+	BATCH_PROCESSED_TOPIC = "batch_processed"
 )
 
 var (
@@ -69,7 +69,7 @@ func processRecords(publisher message.Publisher) func(path string) {
 		}
 		defer f.Close()
 
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		if err != nil {
 			panic(err)
 		}
