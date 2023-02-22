@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
+	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -30,7 +29,10 @@ func main() {
 
 	channel := gochannel.NewGoChannel(gochannel.Config{}, logger)
 
-	go processRecords(channel)("./database.json")
+	go batchData(channel)(batchDataInput{
+		path:      "./database.json",
+		batchSize: 100,
+	})
 
 	router.AddHandler(
 		"batch_processor",
@@ -39,16 +41,18 @@ func main() {
 		BATCH_PROCESSED_TOPIC,
 		channel,
 		func(msg *message.Message) ([]*message.Message, error) {
+			msg.Ack()
+			fmt.Printf("processing batch %s\n", msg.UUID)
 			var records []Vehicle
 			if err := json.Unmarshal(msg.Payload, &records); err != nil {
 				return nil, err
 			}
 
-			for _, v := range records {
-				fmt.Printf("%+v", v)
+			for i := 0; i <= len(records); i++ {
+				time.Sleep(100 * time.Millisecond)
 			}
 
-			msg.Ack()
+			fmt.Printf("processed batch %s\n", msg.UUID)
 			return nil, nil
 		},
 	)
@@ -56,40 +60,5 @@ func main() {
 	ctx := context.Background()
 	if err := router.Run(ctx); err != nil {
 		panic(err)
-	}
-}
-
-func processRecords(publisher message.Publisher) func(path string) {
-	return func(path string) {
-		var data []Vehicle
-
-		f, err := os.Open(path)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		b, err := io.ReadAll(f)
-		if err != nil {
-			panic(err)
-		}
-
-		err = json.Unmarshal(b, &data)
-		if err != nil {
-			panic(err)
-		}
-
-		var batch []Vehicle
-
-		for i, v := range data {
-			batch = append(batch, v)
-			records, err := json.Marshal(batch)
-			if err != nil {
-				panic(err)
-			}
-			if i%10 == 0 {
-				publisher.Publish(PROCESS_BATCH_TOPIC, message.NewMessage(watermill.NewUUID(), records))
-			}
-		}
 	}
 }
